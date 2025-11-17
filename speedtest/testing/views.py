@@ -5,6 +5,7 @@ from turtledemo.penrose import start
 
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 
 # Create your views here.
@@ -30,42 +31,49 @@ def api_download(request):
             size = request.GET.get('size', '1048576')
 
             size_bytes = int(size)
-            size_bytes = min(size_bytes, 50 * 1024 * 1024)
-
+            size_bytes = min(size_bytes, 100 * 1024 * 1024)
+            print(f'размер файла {size_bytes} байт')
             test_data = os.urandom(size_bytes)
-            print(test_data)
+
             response = HttpResponse(test_data, content_type='application/octet-stream')
             response['Content-Disposition'] = 'attachment; filename="test.bin"'
+            response['Content-Length'] = size_bytes
+
+            # chunk_size = 1024 * 2048
+            # for i in range(0, len(test_data), chunk_size):
+            #     response.write(test_data[i:i + chunk_size])
+            #     response.flush()
+            #     time.sleep(0.1)
+
             return response
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
+@csrf_exempt
 def api_upload(request):
     if request.method == 'POST':
         try:
-            start_time = time.time()
             file_content = request.body
             file_size = len(file_content)
-            duration = time.time() - start_time
-            if duration > 0:
-                upload_speed_mbps = (file_size * 8) / duration / 1000000
-            else:
-                upload_speed_mbps = 0
 
             client_ip = request.META.get('REMOTE_ADDR')
 
-            return JsonResponse({'upload_speed_mbps': upload_speed_mbps, 'file_size': file_size, 'client_ip': client_ip,
-                                 'duration': duration})
+            return JsonResponse({'file_size': file_size, 'client_ip': client_ip})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
+@csrf_exempt
 def save_result(request):
-    data = json.loads(request.body)
-    print(data)
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON format'})
     required_fields = ['upload_speed', 'download_speed', 'ping']
     if not all(field in data for field in required_fields):
         return JsonResponse({'status': 'error', 'message': 'Missing required fields'})

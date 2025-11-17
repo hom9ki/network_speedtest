@@ -76,7 +76,7 @@ class SpeedTest {
         this.updateStatus('Тест скорости скачивания...');
         this.updateProgress(40, 'Скачивание');
 
-        const fileSizes = [1 * 1024 * 1024, 5 * 1024 * 1024]; // 1MB и 5MB
+        const fileSizes = [5 * 1024 * 1024, 10 * 1024 * 1024, 25 * 1024 * 1024 ];
         let totalSpeed = 0;
         let testCount = 0;
 
@@ -104,7 +104,9 @@ class SpeedTest {
             const xhr = new XMLHttpRequest();
             const startTime = performance.now();
 
-            xhr.open('GET', `${this.baseUrl}/download?size=${size}`, true);
+            xhr.open('GET', `${this.baseUrl}/download?size=${fileSize}`, true);
+            xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            xhr.setRequestHeader('Pragma', 'no-cache');
             xhr.responseType = 'blob';
 
             xhr.onload = function() {
@@ -131,7 +133,7 @@ class SpeedTest {
         this.updateStatus('Тест скорости отдачи...');
         this.updateProgress(70, 'Отдача');
 
-        const testSizes = [1 * 1024 * 1024, 2 * 1024 * 1024]; // 1MB и 2MB
+        const testSizes = [5 * 1024 * 1024, 10 * 1024 * 1024, 25 * 1024 * 1024 ];
         let totalSpeed = 0;
         let testCount = 0;
 
@@ -156,28 +158,41 @@ class SpeedTest {
     }
 
     async measureUploadSpeed(testData) {
-        const formData = new FormData();
-        const blob = new Blob([testData], { type: 'application/octet-stream' });
-        formData.append('file', blob);
+        const start = performance.now();
 
         try {
             const response = await fetch(`${this.baseUrl}/upload`, {
                 method: 'POST',
-                body: testData, // Отправляем напрямую бинарные данные
+                cache: 'no-store',
+                body: testData,
                 headers: {
-                    'Content-Type': 'application/octet-stream'
+                    'Content-Type': 'application/octet-stream',
+                    'X-CSRFToken': csrfToken
                 }
             });
-
-            if (response.ok) {
-                const result = await response.json();
-                return result.upload_speed;
-            } else {
-                throw new Error(`HTTP ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
             }
+
+            const result = await response.json();
+
+            if (!result.file_size) {
+                console.error('No file_size in upload response', result);
+                return 0;
+            }
+
+            const end = performance.now();
+            const duration = (end - start) / 1000; // в секундах
+
+            const sizeBits = result.file_size * 8;
+            const speedMbps = sizeBits / duration / 1000000;
+            console.log(`Upload speed: ${speedMbps.toFixed(2)} Mbps`);
+
+            return speedMbps;
+
         } catch (error) {
-            console.error('Upload measurement error:', error);
-            throw error;
+            console.error('Upload error:', error);
+            return 0;
         }
     }
 
@@ -191,7 +206,7 @@ class SpeedTest {
     }
 
     async saveResults() {
-        if (!this.ping || !this.downloadSpeed || !this.uploadSpeed) {
+        if (this.ping === undefined || this.downloadSpeed === undefined || this.uploadSpeed === undefined) {
             console.error('Incomplete test results');
             return;
         }
@@ -199,6 +214,7 @@ class SpeedTest {
         try {
             const response = await fetch(`${this.baseUrl}/save`, {
                 method: 'POST',
+                cache: 'no-store',
                 headers: {
                     'Content-Type': 'application/json'
                 },

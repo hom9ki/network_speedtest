@@ -115,7 +115,7 @@
         <div>Мбит/с</div>
     </div>
     <div class="result-item">
-        <div>Отдача</div>
+        <div>Загрузка</div>
         <div id="uploadResult" class="result-value">-</div>
         <div>Мбит/с</div>
     </div>
@@ -128,6 +128,11 @@
 
 <!-- Подключаем ваш JS -->
 {% load static %}
+{% csrf_token %}
+<script>
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    console.log(csrfToken);
+</script>
 <script src="{% static 'speedtest/speedtest.js' %}"></script>
 </body>
 </html>
