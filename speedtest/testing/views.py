@@ -1,14 +1,38 @@
 import json
 import os
-import time
-from turtledemo.penrose import start
+import requests
 
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 
-# Create your views here.
+def get_location(request):
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        response.raise_for_status()
+        data = response.json()
+        print(data)
+        location = {'ip': data.get('ip', None),
+                    'city': data.get('city', None),
+                    'region': data.get('region', None),
+                    'country': data.get('country', None),
+                    'isp': data.get('org', None),
+                    'loc': data.get('loc', None),
+                    'timezone': data.get('timezone', None)}
+
+        if all(location.values()):
+            return JsonResponse(location)
+        return JsonResponse({'status': 'error'})
+    except Exception as e:
+        print(f"Geo lookup failed: {e}")
+        return JsonResponse({'status': 'error',
+                             'city': 'Unknown',
+                             'region': 'Unknown',
+                             'country': 'Unknown',
+                             'isp': 'Unknown'
+                             })
+
 
 def index(request):
     context = {
@@ -58,7 +82,11 @@ def api_upload(request):
             file_content = request.body
             file_size = len(file_content)
 
-            client_ip = request.META.get('REMOTE_ADDR')
+            client_ip = request.META.get('HTTP_X_FORWARDED_FOR')
+            if client_ip:
+                client_ip = client_ip.split(',')[0].strip()
+            else:
+                client_ip = request.META.get('REMOTE_ADDR')
 
             return JsonResponse({'file_size': file_size, 'client_ip': client_ip})
         except Exception as e:

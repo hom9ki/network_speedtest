@@ -4,6 +4,7 @@ class SpeedTest {
         this.isTesting = false;
         this.currentTest = null;
         this.loadStats();
+        this.testLocation().then(() => this.displayLocation());
     }
 
     async startTest() {
@@ -16,6 +17,10 @@ class SpeedTest {
         try {
             // 1. Тест пинга
             await this.testPing();
+
+
+            await this.testLocation();
+            this.displayLocation();
 
             // 2. Тест скачивания
             await this.testDownload();
@@ -70,6 +75,46 @@ class SpeedTest {
         this.updateResult('ping', this.ping);
 
         return this.ping;
+    }
+
+    async testLocation() {
+    this.updateStatus('Определение местоположения...');
+    this.updateProgress(5, 'Местоположение');
+
+        try {
+            const response = await fetch(`${this.baseUrl}/location`, {
+                method: 'GET',
+                cache: 'no-cache'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Location data:', data);
+
+                // Сохраняем в объекте
+                this.location = data;
+
+                // Обновляем статус
+                this.updateStatus(`Местоположение: ${data.city}, ${data.country} (${data.isp})`);
+            } else {
+                this.updateStatus('Не удалось определить местоположение');
+                this.location = {
+                    ip: 'Неизвестно',
+                    city: 'Неизвестно',
+                    country: 'Неизвестно',
+                    isp: 'Неизвестно'
+                };
+            }
+        } catch (error) {
+            console.error('Location error:', error);
+            this.updateStatus('Ошибка при определении местоположения');
+            this.location = {
+                ip: 'Неизвестно',
+                city: 'Неизвестно',
+                country: 'Неизвестно',
+                isp: 'Неизвестно'
+            };
+        }
     }
 
     async testDownload() {
@@ -278,6 +323,23 @@ class SpeedTest {
             element.style.color = '#4CAF50';
         }
     }
+
+    displayLocation() {
+    const locationElement = document.getElementById('location-info');
+    if (!this.location) {
+        locationElement.innerHTML = '<div>Данные недоступны</div>';
+        return;
+    }
+
+    locationElement.innerHTML = `
+        <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div><strong>IP-адрес:</strong> ${this.location.ip}</div>
+            <div><strong>Местоположение:</strong> ${this.location.city}, ${this.location.region}, ${this.location.country}</div>
+            <div><strong>Провайдер:</strong> ${this.location.isp}</div>
+            ${this.location.timezone !== 'Неизвестно' ? `<div><strong>Часовой пояс:</strong> ${this.location.timezone}</div>` : ''}
+        </div>
+    `;
+}
 
     updateStatus(message) {
         const statusElement = document.getElementById('testStatus');
